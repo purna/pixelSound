@@ -1877,3 +1877,67 @@
         align-self: flex-end;
     }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   AUDIO IFRAME PLAYER STYLES
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#audioIframeContainer {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    width: 320px;
+    height: 80px;
+    z-index: 1001;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+#audioIframeContainer.hidden {
+    display: none;
+}
+
+#audioIframeContainer iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+/* Close button for iframe container */
+#audioIframeContainer .close-iframe {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 24px;
+    height: 24px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    z-index: 10;
+    transition: all 0.2s;
+}
+
+#audioIframeContainer .close-iframe:hover {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: white;
+}
+
+/* Responsive adjustments for iframe player */
+@media (max-width: 768px) {
+    #audioIframeContainer {
+        left: 10px;
+        right: 10px;
+        width: auto;
+        bottom: 70px;
+    }
+}

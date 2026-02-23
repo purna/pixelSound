@@ -88,11 +88,15 @@ async function loadLibraryJsonFiles() {
             
             // Convert Google Drive URLs to playable audio URLs
             loadedFiles = parsed.map((row, idx) => {
-                // Convert Drive URL to direct download URL
+                // Convert Drive URL to playable format
                 let audioUrl = row.path;
+                let driveId = null;
                 const driveMatch = row.path.match(/\/d\/([a-zA-Z0-9_-]+)/);
                 if (driveMatch) {
-                    audioUrl = `https://drive.google.com/uc?export=download&id=${driveMatch[1]}`;
+                    driveId = driveMatch[1];
+                    // Use CORS proxy for Google Drive files
+                    // This bypasses CORS restrictions for audio playback
+                    audioUrl = getGoogleDriveAudioUrl(driveId);
                 }
                 
                 // Determine format from URL or default to mp3
@@ -125,6 +129,7 @@ async function loadLibraryJsonFiles() {
                     id: idx + 1,
                     path: audioUrl,
                     originalPath: row.path,
+                    driveId: driveId,
                     name: row.name || 'Unknown',
                     category: row.folderName || 'Misc',
                     format: format,
@@ -450,16 +455,27 @@ function applyFilters() {
 // PLAYBACK
 // ─────────────────────────────────────────────────────────────────────────────
 function togglePlay(idx) {
-    if (currentIndex === idx && howl) {
-        if (howl.playing()) {
-            howl.pause();
-            setPlayerBtn('play');
-        } else {
-            howl.play();
-            setPlayerBtn('pause');
+    // If clicking the same file that's currently playing
+    if (currentIndex === idx) {
+        // For Howler playback
+        if (howl) {
+            if (howl.playing()) {
+                howl.pause();
+                setPlayerBtn('play');
+            } else {
+                howl.play();
+                setPlayerBtn('pause');
+            }
+            return;
         }
-        return;
+        // For iframe playback - stop it
+        const iframeContainer = document.getElementById('audioIframeContainer');
+        if (iframeContainer && !iframeContainer.classList.contains('hidden')) {
+            stopIframePlayback();
+            return;
+        }
     }
+    // Load and play new file
     loadAndPlay(idx);
 }
 
@@ -472,6 +488,13 @@ function loadAndPlay(idx) {
 
     currentIndex = idx;
 
+    // For Google Drive files, use iframe embedding
+    if (f.driveId) {
+        playWithIframe(f);
+        return;
+    }
+
+    // For local files, use Howler.js
     howl = new Howl({
         src:    [f.path],
         html5:  true,
@@ -492,20 +515,99 @@ function loadAndPlay(idx) {
             renderGrid();
             if (settings.autoplay && !isLooping) playNext();
         },
-        onloaderror: () => {
-            // File doesn't exist in demo — show a realistic preview
-            showToast('ℹ️ Audio file not found (demo mode). Path: ' + f.path, 4000);
+        onloaderror: (id, err) => {
+            console.log('Audio load error:', err, 'for file:', f.name);
+            showToast('ℹ️ Could not load audio: ' + f.name, 3000);
             simulateDemoPlayback(f);
         },
         onload: () => {
             f.duration = howl.duration();
-            // Update duration display in card if visible
-            const el = document.querySelector(`[data-id="${f.id}"] .audio-meta-item:last-child`);
         }
     });
 
     howl.play();
     showPlayerBar(f);
+}
+
+/**
+ * Play audio using Google Drive iframe embedding
+ */
+function playWithIframe(f) {
+    showPlayerBar(f);
+    updatePlayerInfo(f);
+    setPlayerBtn('pause');
+    
+    // Create or get the audio iframe container
+    let iframeContainer = document.getElementById('audioIframeContainer');
+    if (!iframeContainer) {
+        iframeContainer = document.createElement('div');
+        iframeContainer.id = 'audioIframeContainer';
+        document.body.appendChild(iframeContainer);
+    }
+    
+    // Create close button
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'close-iframe';
+    closeBtn.innerHTML = '<i class="fas fa-times"></i>';
+    closeBtn.title = 'Close player';
+    closeBtn.onclick = () => {
+        stopIframePlayback();
+        renderGrid();
+    };
+    
+    // Create iframe for Google Drive preview
+    const iframe = document.createElement('iframe');
+    iframe.src = `https://drive.google.com/file/d/${f.driveId}/preview`;
+    iframe.allow = 'autoplay';
+    
+    // Clear previous content and add new iframe
+    iframeContainer.innerHTML = '';
+    iframeContainer.appendChild(closeBtn);
+    iframeContainer.appendChild(iframe);
+    iframeContainer.classList.remove('hidden');
+    
+    // Show toast with file name
+    showToast(`🎵 Playing: ${f.name}`);
+    
+    // Update UI
+    renderGrid();
+    
+    // Set up a timer to simulate playback progress
+    // (Google Drive iframe doesn't provide progress events)
+    f.duration = f.duration || 30; // Default duration
+    let elapsed = 0;
+    const start = Date.now();
+    
+    const tick = () => {
+        elapsed = (Date.now() - start) / 1000;
+        const pct = Math.min(elapsed / f.duration, 1);
+        document.getElementById('progressFill').style.width = (pct * 100) + '%';
+        document.getElementById('currentTime').textContent  = formatTime(elapsed);
+        document.getElementById('duration').textContent     = formatTime(f.duration);
+        if (pct < 1) {
+            progressRAF = requestAnimationFrame(tick);
+        } else {
+            setPlayerBtn('play');
+            resetProgress();
+            renderGrid();
+            if (settings.autoplay && !isLooping) playNext();
+        }
+    };
+    progressRAF = requestAnimationFrame(tick);
+}
+
+/**
+ * Stop iframe playback
+ */
+function stopIframePlayback() {
+    const iframeContainer = document.getElementById('audioIframeContainer');
+    if (iframeContainer) {
+        iframeContainer.innerHTML = '';
+        iframeContainer.classList.add('hidden');
+    }
+    cancelAnimationFrame(progressRAF);
+    resetProgress();
+    setPlayerBtn('play');
 }
 
 function simulateDemoPlayback(f) {
@@ -556,12 +658,18 @@ function resetProgress() {
 
 function playNext() {
     if (filteredFiles.length === 0) return;
+    // Stop any current playback
+    if (howl) { howl.stop(); }
+    stopIframePlayback();
     const next = (currentIndex + 1) % filteredFiles.length;
     loadAndPlay(next);
 }
 
 function playPrev() {
     if (filteredFiles.length === 0) return;
+    // Stop any current playback
+    if (howl) { howl.stop(); }
+    stopIframePlayback();
     const prev = (currentIndex - 1 + filteredFiles.length) % filteredFiles.length;
     loadAndPlay(prev);
 }
@@ -712,9 +820,16 @@ function downloadFile(idx, e) {
         if (!confirm(`Download "${f.name}"?\nPath: ${f.path}`)) return;
     }
 
+    // For Google Drive files, use the download URL
+    let downloadUrl = f.path;
+    if (f.driveId) {
+        downloadUrl = `https://drive.google.com/uc?export=download&id=${f.driveId}`;
+    }
+
     const a    = document.createElement('a');
-    a.href     = f.path;
-    a.download = f.path.split('/').pop();
+    a.href     = downloadUrl;
+    a.download = f.name + '.' + f.format;
+    a.target = '_blank';
     a.click();
     showToast(`⬇️ Downloading: ${f.name}`);
 }
@@ -1283,6 +1398,30 @@ function bindUI() {
 // ─────────────────────────────────────────────────────────────────────────────
 // UTILITIES
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Get a playable Google Drive URL
+ * Uses the preview URL for iframe embedding
+ */
+function getGoogleDriveAudioUrl(driveId) {
+    // Use the preview URL for iframe embedding (most reliable)
+    return `https://drive.google.com/file/d/${driveId}/preview`;
+}
+
+/**
+ * Get download URL for Google Drive file
+ */
+function getGoogleDriveDownloadUrl(driveId) {
+    return `https://drive.google.com/uc?export=download&id=${driveId}`;
+}
+
+/**
+ * Get direct Google Drive URL (may have CORS issues)
+ */
+function getDirectGoogleDriveUrl(driveId) {
+    return `https://drive.google.com/uc?export=download&id=${driveId}`;
+}
+
 function categoryIcon(cat) {
     const map = {
         Ambience: 'fa-cloud',
