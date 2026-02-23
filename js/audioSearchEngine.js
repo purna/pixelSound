@@ -24,6 +24,7 @@ let filteredFiles   = [];        // currently filtered results
 let displayedFiles  = [];        // currently displayed (paginated)
 let currentIndex    = -1;        // index into filteredFiles
 let howl            = null;      // active Howler instance
+let html5Audio      = null;      // HTML5 audio element for Google Drive files
 let isLooping       = false;
 let progressRAF     = null;
 let currentModal    = null;      // file shown in details modal
@@ -104,26 +105,8 @@ async function loadLibraryJsonFiles() {
                 if (row.path.toLowerCase().includes('.wav')) format = 'wav';
                 else if (row.path.toLowerCase().includes('.ogg')) format = 'ogg';
                 
-                // Determine library from folder name
+                // Use the folder collection name directly as the library name
                 let library = row.folderName || 'Other';
-                if (library.includes('Dings and Dongs') || library.includes('Tics and Tacs') || 
-                    library.includes('Swishes and Swooshes') || library.includes('Wums and Wuhs')) {
-                    library = 'XDSoundKit';
-                } else if (library.includes('Adobe')) {
-                    library = 'Adobe';
-                } else if (library.includes('Kenney')) {
-                    library = 'Kenney';
-                } else if (library.includes('H360')) {
-                    library = 'H360s';
-                } else if (library.includes('Boom') || library.includes('Cinematic')) {
-                    library = 'BoomLibrary';
-                } else if (library.includes('Amiga')) {
-                    library = 'Amiga Music';
-                } else if (library.includes('FilmCow')) {
-                    library = 'FilmCow';
-                } else if (library.includes('Ambience')) {
-                    library = 'H360s'; // Ambience is typically part of H360s
-                }
                 
                 return {
                     id: idx + 1,
@@ -154,6 +137,7 @@ async function loadLibraryJsonFiles() {
         currentDisplayLimit = INITIAL_LOAD_LIMIT;
         renderGrid();
         updateStats();
+        updateLibraryFilter();
         showToast(`✅ Loaded ${audioFiles.length} audio files from Google Sheets`);
     } else {
         // Fallback to local manifest files
@@ -204,6 +188,7 @@ async function loadLibraryJsonFiles() {
             currentDisplayLimit = INITIAL_LOAD_LIMIT;
             renderGrid();
             updateStats();
+            updateLibraryFilter();
             showToast(`✅ Loaded ${audioFiles.length} audio files from ${loadedCount} libraries`);
         } else {
             loading.classList.add('hidden');
@@ -234,7 +219,7 @@ function parseAudioSheetsCsv(csv) {
             tags: row['tags'] ? row['tags'].split(',').map(t => t.trim()).filter(Boolean) : [],
             description: row['description'] || row['desc'] || '',
             rating: row['rating (1–5)'] || row['rating'] || '0',
-            folderName: row['folder name'] || row['folder'] || ''
+            folderName: row['folder collection'] || row['folder name'] || row['folder'] || ''
         };
     }).filter(r => r.path);
 }
@@ -294,7 +279,9 @@ function renderGrid() {
     // Attach card event listeners
     grid.querySelectorAll('.audio-card').forEach((card, idx) => {
         card.addEventListener('click', e => {
+            // Don't open modal if clicking on buttons or audio player
             if (e.target.closest('.audio-card-btn')) return;
+            if (e.target.closest('.audio-player-custom')) return;
             openDetailsModal(displayedFiles[idx]);
         });
     });
@@ -357,7 +344,7 @@ function loadMore() {
 }
 
 function buildCard(f, idx) {
-    const isPlaying = currentIndex === idx && howl && howl.playing();
+    const isPlaying = currentIndex === idx && ((howl && howl.playing()) || (html5Audio && !html5Audio.paused));
     const stars     = buildStarsHtml(f.rating);
     const libraryTag = f.library ? `<span class="audio-tag library-tag">${esc(f.library)}</span>` : '';
     const tags      = (f.tags || []).slice(0, 3).map(t => `<span class="audio-tag">${esc(t)}</span>`).join('');
@@ -365,7 +352,7 @@ function buildCard(f, idx) {
     const icon      = categoryIcon(f.category);
 
     return `
-    <div class="audio-card${isPlaying ? ' playing' : ''}" data-id="${f.id}">
+    <div class="audio-card${isPlaying ? ' playing' : ''}" data-id="${f.id}" data-idx="${idx}">
         <div class="audio-card-header">
             <div class="audio-icon"><i class="fas ${icon}"></i></div>
             <div class="audio-info">
@@ -382,10 +369,27 @@ function buildCard(f, idx) {
         </div>
         ${libraryTag || tags ? `<div class="audio-tags">${libraryTag}${tags}</div>` : ''}
         <div class="audio-rating">${stars}</div>
-        <div class="audio-card-actions">
-            <button class="audio-card-btn play-btn" onclick="togglePlay(${idx})" title="${isPlaying ? 'Pause' : 'Play'}">
-                <i class="fas fa-${isPlaying ? 'pause' : 'play'}"></i> ${isPlaying ? 'Pause' : 'Play'}
+        <div class="audio-player-custom" data-idx="${idx}">
+            <button class="audio-play-btn${isPlaying ? ' playing' : ''}" onclick="togglePlay(${idx})" title="${isPlaying ? 'Pause' : 'Play'}">
+                <i class="fas fa-${isPlaying ? 'pause' : 'play'}"></i>
             </button>
+            <div class="audio-progress-container">
+                <div class="audio-progress-bar" onclick="seekAudio(event, ${idx})">
+                    <div class="audio-progress-fill${isPlaying ? ' playing' : ''}" style="width: 0%"></div>
+                </div>
+                <div class="audio-time-display">
+                    <span class="audio-current-time">0:00</span>
+                    <span class="audio-duration">${f.duration ? formatTime(f.duration) : '0:00'}</span>
+                </div>
+            </div>
+            <button class="audio-volume-btn" onclick="toggleVolumeSlider(this)" title="Volume">
+                <i class="fas fa-volume-up"></i>
+            </button>
+            <div class="audio-volume-slider hidden">
+                <input type="range" min="0" max="100" value="${settings.volume}" onchange="setCardVolume(this, ${idx})">
+            </div>
+        </div>
+        <div class="audio-card-actions">
             <button class="audio-card-btn download-btn" onclick="downloadFile(${idx}, event)" title="Download">
                 <i class="fas fa-download"></i>
             </button>
@@ -468,10 +472,15 @@ function togglePlay(idx) {
             }
             return;
         }
-        // For iframe playback - stop it
-        const iframeContainer = document.getElementById('audioIframeContainer');
-        if (iframeContainer && !iframeContainer.classList.contains('hidden')) {
-            stopIframePlayback();
+        // For HTML5 audio playback
+        if (html5Audio && html5Audio.src) {
+            if (!html5Audio.paused) {
+                html5Audio.pause();
+                setPlayerBtn('play');
+            } else {
+                html5Audio.play();
+                setPlayerBtn('pause');
+            }
             return;
         }
     }
@@ -480,7 +489,9 @@ function togglePlay(idx) {
 }
 
 function loadAndPlay(idx) {
-    if (howl) { howl.unload(); }
+    // Stop any existing playback
+    if (howl) { howl.unload(); howl = null; }
+    if (html5Audio) { html5Audio.pause(); html5Audio.src = ''; }
     cancelAnimationFrame(progressRAF);
 
     const f = filteredFiles[idx];
@@ -488,9 +499,9 @@ function loadAndPlay(idx) {
 
     currentIndex = idx;
 
-    // For Google Drive files, use iframe embedding
+    // For Google Drive files, use HTML5 audio element (better CORS handling)
     if (f.driveId) {
-        playWithIframe(f);
+        playWithHtml5Audio(f);
         return;
     }
 
@@ -530,84 +541,87 @@ function loadAndPlay(idx) {
 }
 
 /**
- * Play audio using Google Drive iframe embedding
+ * Play audio using HTML5 audio element (for Google Drive files)
  */
-function playWithIframe(f) {
-    showPlayerBar(f);
-    updatePlayerInfo(f);
-    setPlayerBtn('pause');
-    
-    // Create or get the audio iframe container
-    let iframeContainer = document.getElementById('audioIframeContainer');
-    if (!iframeContainer) {
-        iframeContainer = document.createElement('div');
-        iframeContainer.id = 'audioIframeContainer';
-        document.body.appendChild(iframeContainer);
+function playWithHtml5Audio(f) {
+    // Create or get the hidden audio element
+    if (!html5Audio) {
+        html5Audio = document.createElement('audio');
+        html5Audio.id = 'html5AudioPlayer';
+        html5Audio.style.display = 'none';
+        document.body.appendChild(html5Audio);
     }
-    
-    // Create close button
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'close-iframe';
-    closeBtn.innerHTML = '<i class="fas fa-times"></i>';
-    closeBtn.title = 'Close player';
-    closeBtn.onclick = () => {
-        stopIframePlayback();
-        renderGrid();
-    };
-    
-    // Create iframe for Google Drive preview
-    const iframe = document.createElement('iframe');
-    iframe.src = `https://drive.google.com/file/d/${f.driveId}/preview`;
-    iframe.allow = 'autoplay';
-    
-    // Clear previous content and add new iframe
-    iframeContainer.innerHTML = '';
-    iframeContainer.appendChild(closeBtn);
-    iframeContainer.appendChild(iframe);
-    iframeContainer.classList.remove('hidden');
-    
-    // Show toast with file name
-    showToast(`🎵 Playing: ${f.name}`);
-    
-    // Update UI
-    renderGrid();
-    
-    // Set up a timer to simulate playback progress
-    // (Google Drive iframe doesn't provide progress events)
-    f.duration = f.duration || 30; // Default duration
-    let elapsed = 0;
-    const start = Date.now();
-    
-    const tick = () => {
-        elapsed = (Date.now() - start) / 1000;
-        const pct = Math.min(elapsed / f.duration, 1);
-        document.getElementById('progressFill').style.width = (pct * 100) + '%';
-        document.getElementById('currentTime').textContent  = formatTime(elapsed);
-        document.getElementById('duration').textContent     = formatTime(f.duration);
-        if (pct < 1) {
-            progressRAF = requestAnimationFrame(tick);
-        } else {
-            setPlayerBtn('play');
-            resetProgress();
-            renderGrid();
-            if (settings.autoplay && !isLooping) playNext();
+
+    // Set up event listeners
+    html5Audio.onloadedmetadata = () => {
+        f.duration = html5Audio.duration;
+        document.getElementById('duration').textContent = formatTime(f.duration);
+        // Update card duration
+        const card = document.querySelector(`.audio-card[data-idx="${currentIndex}"]`);
+        if (card) {
+            const durationEl = card.querySelector('.audio-duration');
+            if (durationEl) durationEl.textContent = formatTime(f.duration);
         }
     };
-    progressRAF = requestAnimationFrame(tick);
-}
 
-/**
- * Stop iframe playback
- */
-function stopIframePlayback() {
-    const iframeContainer = document.getElementById('audioIframeContainer');
-    if (iframeContainer) {
-        iframeContainer.innerHTML = '';
-        iframeContainer.classList.add('hidden');
-    }
-    cancelAnimationFrame(progressRAF);
-    resetProgress();
-    setPlayerBtn('play');
+    html5Audio.ontimeupdate = () => {
+        const seek = html5Audio.currentTime;
+        const dur = html5Audio.duration || 1;
+        const pct = (seek / dur) * 100;
+        
+        // Update main player bar
+        document.getElementById('progressFill').style.width = pct + '%';
+        document.getElementById('currentTime').textContent = formatTime(seek);
+        document.getElementById('duration').textContent = formatTime(dur);
+        
+        // Update card's custom audio player
+        const card = document.querySelector(`.audio-card[data-idx="${currentIndex}"]`);
+        if (card) {
+            const progressFill = card.querySelector('.audio-progress-fill');
+            const currentTimeEl = card.querySelector('.audio-current-time');
+            const durationEl = card.querySelector('.audio-duration');
+            if (progressFill) progressFill.style.width = pct + '%';
+            if (currentTimeEl) currentTimeEl.textContent = formatTime(seek);
+            if (durationEl) durationEl.textContent = formatTime(dur);
+        }
+    };
+
+    html5Audio.onended = () => {
+        setPlayerBtn('play');
+        resetProgress();
+        renderGrid();
+        if (settings.autoplay && !isLooping) playNext();
+    };
+
+    html5Audio.onplay = () => {
+        setPlayerBtn('pause');
+        renderGrid();
+    };
+
+    html5Audio.onpause = () => {
+        setPlayerBtn('play');
+        renderGrid();
+    };
+
+    html5Audio.onerror = (e) => {
+        console.log('HTML5 audio error:', e, 'for file:', f.name);
+        showToast('ℹ️ Could not load audio: ' + f.name, 3000);
+        simulateDemoPlayback(f);
+    };
+
+    // Set source and play
+    html5Audio.src = getGoogleDriveDownloadUrl(f.driveId);
+    html5Audio.volume = (settings.volume || 80) / 100;
+    html5Audio.loop = isLooping;
+    
+    html5Audio.play().catch(err => {
+        console.log('Playback failed:', err);
+        showToast('ℹ️ Could not play audio: ' + f.name, 3000);
+    });
+
+    showPlayerBar(f);
+    updatePlayerInfo(f);
+    showToast(`🎵 Playing: ${f.name}`);
 }
 
 function simulateDemoPlayback(f) {
@@ -644,9 +658,26 @@ function tickProgress() {
     if (!howl || !howl.playing()) return;
     const seek = howl.seek() || 0;
     const dur  = howl.duration() || 1;
-    document.getElementById('progressFill').style.width = ((seek / dur) * 100) + '%';
+    const pct = (seek / dur) * 100;
+    
+    // Update main player bar
+    document.getElementById('progressFill').style.width = pct + '%';
     document.getElementById('currentTime').textContent  = formatTime(seek);
     document.getElementById('duration').textContent     = formatTime(dur);
+    
+    // Update card's custom audio player
+    if (currentIndex >= 0) {
+        const card = document.querySelector(`.audio-card[data-idx="${currentIndex}"]`);
+        if (card) {
+            const progressFill = card.querySelector('.audio-progress-fill');
+            const currentTimeEl = card.querySelector('.audio-current-time');
+            const durationEl = card.querySelector('.audio-duration');
+            if (progressFill) progressFill.style.width = pct + '%';
+            if (currentTimeEl) currentTimeEl.textContent = formatTime(seek);
+            if (durationEl) durationEl.textContent = formatTime(dur);
+        }
+    }
+    
     progressRAF = requestAnimationFrame(tickProgress);
 }
 
@@ -660,7 +691,7 @@ function playNext() {
     if (filteredFiles.length === 0) return;
     // Stop any current playback
     if (howl) { howl.stop(); }
-    stopIframePlayback();
+    if (html5Audio) { html5Audio.pause(); }
     const next = (currentIndex + 1) % filteredFiles.length;
     loadAndPlay(next);
 }
@@ -669,7 +700,7 @@ function playPrev() {
     if (filteredFiles.length === 0) return;
     // Stop any current playback
     if (howl) { howl.stop(); }
-    stopIframePlayback();
+    if (html5Audio) { html5Audio.pause(); }
     const prev = (currentIndex - 1 + filteredFiles.length) % filteredFiles.length;
     loadAndPlay(prev);
 }
@@ -722,7 +753,8 @@ function openDetailsModal(f) {
         const idx = filteredFiles.indexOf(f);
         if (idx !== -1) {
             togglePlay(idx);
-            previewBtn.innerHTML = (howl && howl.playing())
+            const isPlaying = (howl && howl.playing()) || (html5Audio && !html5Audio.paused);
+            previewBtn.innerHTML = isPlaying
                 ? '<i class="fas fa-pause"></i> Pause'
                 : '<i class="fas fa-play"></i> Preview';
         }
@@ -879,6 +911,7 @@ function applySettings() {
     const vol = document.getElementById('volumeSlider');
     if (vol) vol.value = settings.volume;
     if (howl) howl.volume(settings.volume / 100);
+    if (html5Audio) html5Audio.volume = settings.volume / 100;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1135,6 +1168,41 @@ function updateStats() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// LIBRARY FILTER
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Rebuilds the #libraryFilter <select> options from the current audioFiles list.
+ * Preserves the user's current selection if it still exists.
+ */
+function updateLibraryFilter() {
+    const select = document.getElementById('libraryFilter');
+    if (!select) return;
+
+    const currentValue = select.value;
+
+    // Collect unique, non-empty library names from the master list
+    const libraries = [...new Set(
+        audioFiles
+            .map(f => f.library)
+            .filter(Boolean)
+    )].sort();
+
+    // Rebuild options
+    select.innerHTML = '<option value="all">All Libraries</option>';
+    libraries.forEach(lib => {
+        const opt = document.createElement('option');
+        opt.value = lib;
+        opt.textContent = lib;
+        select.appendChild(opt);
+    });
+
+    // Restore selection if it still exists
+    if ([...select.options].some(o => o.value === currentValue)) {
+        select.value = currentValue;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // TOAST
 // ─────────────────────────────────────────────────────────────────────────────
 let toastTimeout = null;
@@ -1176,6 +1244,9 @@ function bindUI() {
         if (howl) {
             if (howl.playing()) { howl.pause(); setPlayerBtn('play'); }
             else                { howl.play();  setPlayerBtn('pause'); }
+        } else if (html5Audio && html5Audio.src) {
+            if (!html5Audio.paused) { html5Audio.pause(); setPlayerBtn('play'); }
+            else                    { html5Audio.play();  setPlayerBtn('pause'); }
         } else if (filteredFiles.length > 0) {
             loadAndPlay(0);
         }
@@ -1184,15 +1255,20 @@ function bindUI() {
     document.getElementById('nextBtn').addEventListener('click', playNext);
 
     document.getElementById('progressBar').addEventListener('click', e => {
-        if (!howl) return;
         const rect = e.currentTarget.getBoundingClientRect();
         const pct  = (e.clientX - rect.left) / rect.width;
-        howl.seek(pct * howl.duration());
+        
+        if (howl) {
+            howl.seek(pct * howl.duration());
+        } else if (html5Audio && html5Audio.duration) {
+            html5Audio.currentTime = pct * html5Audio.duration;
+        }
     });
 
     document.getElementById('volumeSlider').addEventListener('input', e => {
         const vol = parseInt(e.target.value) / 100;
         if (howl) howl.volume(vol);
+        if (html5Audio) html5Audio.volume = vol;
         settings.volume = parseInt(e.target.value);
         if (settings.rememberVolume) saveSettings();
     });
@@ -1200,6 +1276,7 @@ function bindUI() {
     document.getElementById('loopBtn').addEventListener('click', () => {
         isLooping = !isLooping;
         if (howl) howl.loop(isLooping);
+        if (html5Audio) html5Audio.loop = isLooping;
         document.getElementById('loopBtn').classList.toggle('active', isLooping);
         showToast(isLooping ? '🔁 Loop on' : '🔁 Loop off');
     });
@@ -1471,6 +1548,75 @@ window.togglePlay       = togglePlay;
 window.downloadFile     = downloadFile;
 window.openDetailsModal = openDetailsModal;
 window.filteredFiles    = filteredFiles; // keep reference live
+window.seekAudio        = seekAudio;
+window.toggleVolumeSlider = toggleVolumeSlider;
+window.setCardVolume    = setCardVolume;
+
+/**
+ * Seek to position in audio
+ */
+function seekAudio(e, idx) {
+    if (idx !== currentIndex) return;
+    
+    const progressBar = e.currentTarget;
+    const rect = progressBar.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    
+    // Handle Howler playback
+    if (howl) {
+        const duration = howl.duration();
+        if (duration) {
+            howl.seek(pct * duration);
+            // Update progress display immediately
+            const card = document.querySelector(`.audio-card[data-idx="${idx}"]`);
+            if (card) {
+                const progressFill = card.querySelector('.audio-progress-fill');
+                const currentTimeEl = card.querySelector('.audio-current-time');
+                if (progressFill) progressFill.style.width = (pct * 100) + '%';
+                if (currentTimeEl) currentTimeEl.textContent = formatTime(pct * duration);
+            }
+        }
+    }
+    
+    // Handle HTML5 audio playback
+    if (html5Audio && html5Audio.duration) {
+        html5Audio.currentTime = pct * html5Audio.duration;
+        // Update progress display immediately
+        const card = document.querySelector(`.audio-card[data-idx="${idx}"]`);
+        if (card) {
+            const progressFill = card.querySelector('.audio-progress-fill');
+            const currentTimeEl = card.querySelector('.audio-current-time');
+            if (progressFill) progressFill.style.width = (pct * 100) + '%';
+            if (currentTimeEl) currentTimeEl.textContent = formatTime(pct * html5Audio.duration);
+        }
+    }
+}
+
+/**
+ * Toggle volume slider visibility
+ */
+function toggleVolumeSlider(btn) {
+    const slider = btn.nextElementSibling;
+    if (slider) {
+        slider.classList.toggle('hidden');
+    }
+}
+
+/**
+ * Set volume for card audio
+ */
+function setCardVolume(input, idx) {
+    const vol = parseInt(input.value) / 100;
+    if (howl && idx === currentIndex) {
+        howl.volume(vol);
+    }
+    if (html5Audio && idx === currentIndex) {
+        html5Audio.volume = vol;
+    }
+    settings.volume = parseInt(input.value);
+    if (settings.rememberVolume) saveSettings();
+}
+
 // Keep filteredFiles reference updated after filters
 const _origRender = renderGrid;
 renderGrid = function() {
