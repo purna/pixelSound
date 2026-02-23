@@ -654,10 +654,9 @@ function tryAlternativeGoogleDriveUrls(f, urlIndex) {
     ];
     
     if (urlIndex >= urlFormats.length) {
-        // All URLs failed, use demo playback
-        isTryingAlternative = false;
-        showToast('ℹ️ Could not load audio: ' + f.name, 3000);
-        simulateDemoPlayback(f);
+        // All URLs failed, try CORS proxy as last resort
+        console.log('All direct URLs failed, trying CORS proxy...');
+        playWithCorsProxy(f);
         return;
     }
     
@@ -674,6 +673,69 @@ function tryAlternativeGoogleDriveUrls(f, urlIndex) {
         // Try next URL format
         tryAlternativeGoogleDriveUrls(f, urlIndex + 1);
     });
+}
+
+/**
+ * Play Google Drive audio using a CORS proxy
+ * Fetches the file through a proxy and creates a blob URL for playback
+ * @param {Object} f - File object
+ */
+async function playWithCorsProxy(f) {
+    const directUrl = `https://drive.google.com/uc?export=download&id=${f.driveId}`;
+    
+    // List of CORS proxies to try
+    const corsProxies = [
+        // Proxy 1: allorigins.win (adds CORS headers)
+        (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+        // Proxy 2: corsproxy.io
+        (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+        // Proxy 3: direct with accept header (sometimes works)
+        (url) => url,
+    ];
+    
+    for (let i = 0; i < corsProxies.length; i++) {
+        const proxyUrl = corsProxies[i](directUrl);
+        console.log(`Trying CORS proxy ${i + 1}:`, proxyUrl);
+        
+        try {
+            showToast(`⏳ Loading audio via proxy ${i + 1}...`, 2000);
+            
+            const response = await fetch(proxyUrl);
+            if (!response.ok) {
+                console.log(`Proxy ${i + 1} returned HTTP ${response.status}`);
+                continue;
+            }
+            
+            // Convert to blob and create object URL
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            
+            console.log(`Proxy ${i + 1} success! Blob size: ${blob.size} bytes`);
+            
+            // Clean up previous blob URL if exists
+            if (html5Audio.src && html5Audio.src.startsWith('blob:')) {
+                URL.revokeObjectURL(html5Audio.src);
+            }
+            
+            // Set the blob URL as audio source
+            html5Audio.src = blobUrl;
+            html5Audio.load();
+            
+            await html5Audio.play();
+            
+            isTryingAlternative = false;
+            showToast(`🎵 Playing: ${f.name}`);
+            return;
+            
+        } catch (err) {
+            console.log(`Proxy ${i + 1} failed:`, err.message);
+        }
+    }
+    
+    // All proxies failed, fall back to demo playback
+    isTryingAlternative = false;
+    showToast('⚠️ Could not load audio. Try downloading instead.', 4000);
+    simulateDemoPlayback(f);
 }
 
 function simulateDemoPlayback(f) {
