@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Sound Collection - Audio Search Engine</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" href="favicon.ico" />
+    <link rel="mask-icon" href="favicon.svg" color="#1e293b" />
+    <meta name="theme-color" content="#f472b6">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="fonts/fontawesome-free-6.5.0/css/all.min.css">
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/audio-search.css">
+</head>
+
+<body>
+    <div class="container">
+        <header class="fixed-header">
+            <div class="header-content">
+                <div class="header-left">
+                    <button class="theme-toggle" id="themeToggle" title="Toggle Dark Mode">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+                <div class="header-center">
+                    <h1><i class="fas fa-headphones"></i> Pixel Sound Collection</h1>
+                    <p class="subtitle">Search, preview, and download audio files</p>
+                </div>
+                <div class="header-right">
+                    <button class="settings-toggle" id="driveLinksBtn" title="Google Drive Links">
+                        <i class="fab fa-google-drive"></i>
+                    </button>
+                    <button class="settings-toggle" id="settingsBtn" title="Settings">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Search Section -->
+        <div class="search-section">
+            <div class="search-box">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" id="searchInput" placeholder="Search audio files by name, tags, or description..." autocomplete="off">
+                <button class="clear-search" id="clearSearch" title="Clear search">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="filter-bar">
+                <div class="filter-group">
+                    <label><i class="fas fa-folder"></i> Category:</label>
+                    <div class="category-filters">
+                        <button class="category-btn active" data-category="all">
+                            <i class="fas fa-globe"></i> All
+                        </button>
+                        <button class="category-btn" data-category="Ambience">
+                            <i class="fas fa-cloud"></i> Ambience
+                        </button>
+                        <button class="category-btn" data-category="Combat">
+                            <i class="fas fa-fist-raised"></i> Combat
+                        </button>
+                        <button class="category-btn" data-category="Foley">
+                            <i class="fas fa-walking"></i> Foley
+                        </button>
+                        <button class="category-btn" data-category="Misc">
+                            <i class="fas fa-box"></i> Misc
+                        </button>
+                        <button class="category-btn" data-category="Voices">
+                            <i class="fas fa-comment"></i> Voices
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="filter-group">
+                    <label><i class="fas fa-file-audio"></i> Format:</label>
+                    <select id="formatFilter">
+                        <option value="all">All Formats</option>
+                        <option value="wav">WAV</option>
+                        <option value="mp3">MP3</option>
+                        <option value="ogg">OGG</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label><i class="fas fa-book"></i> Library:</label>
+                    <select id="libraryFilter">
+                        <option value="all">All Libraries</option>
+                        <option value="H360s">H360s</option>
+                        <option value="Kenney">Kenney</option>
+                        <option value="FilmCow">FilmCow</option>
+                        <option value="Adobe">Adobe</option>
+                        <option value="Amiga Music">Amiga Music</option>
+                        <option value="BoomLibrary">Boom Library</option>
+                        <option value="XDSoundKit">XD SoundKit</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label><i class="fas fa-sort"></i> Sort:</label>
+                    <select id="sortFilter">
+                        <option value="name-asc">Name (A-Z)</option>
+                        <option value="name-desc">Name (Z-A)</option>
+                        <option value="rating-desc">Rating (High to Low)</option>
+                        <option value="rating-asc">Rating (Low to High)</option>
+                        <option value="date-desc">Newest First</option>
+                        <option value="date-asc">Oldest First</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="search-stats">
+                <span id="resultCount">Loading audio files...</span>
+                <span id="selectedCount" class="selected-info"></span>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="results-section">
+            <div class="results-grid" id="resultsGrid">
+                <!-- Audio cards will be populated here -->
+            </div>
+            
+            <div class="no-results hidden" id="noResults">
+                <i class="fas fa-search"></i>
+                <h3>No audio files found</h3>
+                <p>Try adjusting your search or filters</p>
+            </div>
+            
+            <div class="loading-indicator" id="loadingIndicator">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>Loading audio files...</span>
+            </div>
+        </div>
+
+        <!-- Audio Player Bar -->
+        <div class="player-bar hidden" id="playerBar">
+            <div class="player-info">
+                <div class="player-art">
+                    <i class="fas fa-music"></i>
+                </div>
+                <div class="player-details">
+                    <h4 id="playerTitle">No audio selected</h4>
+                    <p id="playerCategory">-</p>
+                </div>
+            </div>
+            
+            <div class="player-controls">
+                <button class="player-btn" id="prevBtn" title="Previous">
+                    <i class="fas fa-step-backward"></i>
+                </button>
+                <button class="player-btn play-btn" id="playPauseBtn" title="Play/Pause">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button class="player-btn" id="nextBtn" title="Next">
+                    <i class="fas fa-step-forward"></i>
+                </button>
+                
+                <div class="progress-container">
+                    <span id="currentTime">0:00</span>
+                    <div class="progress-bar" id="progressBar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <span id="duration">0:00</span>
+                </div>
+            </div>
+            
+            <div class="player-volume">
+                <i class="fas fa-volume-up"></i>
+                <input type="range" id="volumeSlider" min="0" max="100" value="80">
+            </div>
+            
+            <div class="player-actions">
+                <button class="action-btn" id="loopBtn" title="Loop">
+                    <i class="fas fa-redo"></i>
+                </button>
+                <button class="action-btn download-btn" id="downloadBtn" title="Download">
+                    <i class="fas fa-download"></i>
+                </button>
+            </div>
+        </div>
+
+        <footer>
+            <p>&copy; 2026 H360 Sound Collection. All rights reserved. | <a href="https://pixelagent.co.uk">pixelagent.co.uk</a></p>
+        </footer>
+    </div>
+
+    <!-- Google Drive Links Modal -->
+    <div id="driveLinksModal" class="modal hidden">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2><i class="fab fa-google-drive"></i> Google Drive Integration</h2>
+                <button class="btn-close" id="closeDriveLinks">✕</button>
+            </div>
+            
+            <!-- Google Sign-In Section -->
+            <div class="settings-section auth-section">
+                <h3><i class="fab fa-google"></i> Google Account</h3>
+                <p>Sign in with Google to access and index your Drive folders</p>
+                
+                <div class="auth-controls">
+                    <div id="googleUserInfo" class="user-info-container hidden"></div>
+                    <button class="btn btn-google" id="googleSignInBtn">
+                        <i class="fab fa-google"></i> Sign in with Google
+                    </button>
+                    <button class="btn btn-secondary hidden" id="googleSignOutBtn">
+                        <i class="fas fa-sign-out-alt"></i> Sign Out
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Folder Indexing Section (shown after sign-in) -->
+            <div class="settings-section hidden" id="driveFolderPicker">
+                <h3><i class="fas fa-folder-open"></i> Index Drive Folder</h3>
+                <p>Select a Google Drive folder to scan for audio files</p>
+                
+                <div class="folder-index-controls">
+                    <button class="btn btn-primary" id="browseFoldersBtn">
+                        <i class="fas fa-folder-open"></i> Browse Folders
+                    </button>
+                    
+                    <div class="or-divider">
+                        <span>or</span>
+                    </div>
+                    
+                    <div class="url-input-group">
+                        <input type="text" id="driveFolderUrl" placeholder="Paste Google Drive folder URL">
+                        <button class="btn" id="indexFolderUrlBtn">
+                            <i class="fas fa-search"></i> Index
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Indexed Folders List -->
+                <div class="indexed-folders-section">
+                    <h4><i class="fas fa-history"></i> Indexed Folders</h4>
+                    <div class="indexed-folders-list" id="indexedFoldersList">
+                        <!-- Indexed folders will be populated here -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- External Links Section -->
+            <div class="settings-section">
+                <h3><i class="fas fa-link"></i> External Drive Links</h3>
+                <p>Quick links to external Google Drive sound libraries</p>
+                
+                <div class="drive-links-list" id="driveLinksList">
+                    <!-- Drive links will be populated here -->
+                </div>
+                
+                <div class="add-drive-link">
+                    <h4><i class="fas fa-plus"></i> Add Quick Link</h4>
+                    <input type="text" id="newDriveName" placeholder="Collection name">
+                    <input type="url" id="newDriveUrl" placeholder="Google Drive folder URL">
+                    <button class="btn" id="addDriveLinkBtn">
+                        <i class="fas fa-plus"></i> Add Link
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Folder Picker Modal -->
+    <div id="driveFolderPickerModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-folder-open"></i> Select a Folder</h2>
+                <button class="btn-close" id="closeFolderPicker">✕</button>
+            </div>
+            <div class="folder-picker-content">
+                <div id="folderPickerList" class="folder-picker-list">
+                    <!-- Folders will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Indexing Progress Modal -->
+    <div id="indexingProgressModal" class="modal hidden">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2><i class="fas fa-sync fa-spin"></i> Indexing Folder</h2>
+            </div>
+            <div class="progress-content">
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" id="indexingProgressBar"></div>
+                </div>
+                <p id="indexingProgressText">Starting...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-cog"></i> Settings</h2>
+                <button class="btn-close" id="closeSettings">✕</button>
+            </div>
+            
+            <div class="settings-tabs">
+                <button class="settings-tab active" data-tab="general">
+                    <i class="fas fa-sliders-h"></i> General
+                </button>
+                <button class="settings-tab" data-tab="metadata">
+                    <i class="fas fa-database"></i> Metadata
+                </button>
+                <button class="settings-tab" data-tab="about">
+                    <i class="fas fa-info-circle"></i> About
+                </button>
+            </div>
+
+            <!-- General Tab -->
+            <div class="settings-tab-content active" id="tab-general">
+                <div class="settings-section">
+                    <h3><i class="fas fa-palette"></i> Appearance</h3>
+                    <p>Customize the look and feel</p>
+                    <div class="setting-option">
+                        <label>
+                            <input type="checkbox" id="darkModeToggle">
+                            <span>Dark Mode</span>
+                        </label>
+                    </div>
+                    <div class="setting-option">
+                        <label>
+                            <input type="checkbox" id="compactViewToggle">
+                            <span>Compact View</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3><i class="fas fa-play-circle"></i> Playback</h3>
+                    <p>Audio playback settings</p>
+                    <div class="setting-option">
+                        <label>
+                            <input type="checkbox" id="autoplayToggle" checked>
+                            <span>Autoplay next audio</span>
+                        </label>
+                    </div>
+                    <div class="setting-option">
+                        <label>
+                            <input type="checkbox" id="rememberVolumeToggle" checked>
+                            <span>Remember volume level</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3><i class="fas fa-download"></i> Downloads</h3>
+                    <p>Download preferences</p>
+                    <div class="setting-option">
+                        <label>
+                            <input type="checkbox" id="showDownloadDialogToggle">
+                            <span>Show download confirmation</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metadata Tab -->
+            <div class="settings-tab-content" id="tab-metadata">
+                <div class="settings-section">
+                    <h3><i class="fab fa-google"></i> Google Sheets Integration</h3>
+                    <p>Link a Google Sheets spreadsheet to manage ratings, tags, and descriptions for all audio files</p>
+                    
+                    <div class="sheets-config">
+                        <input type="text" id="sheetsUrl" placeholder="Google Sheets URL">
+                        <button class="btn" id="connectSheetsBtn">
+                            <i class="fab fa-google"></i> Connect Sheet
+                        </button>
+                    </div>
+                    
+                    <div id="sheetsStatus" class="status-message"></div>
+                    
+                    <div class="sheets-info">
+                        <h4>Sheet Structure:</h4>
+                        <ul>
+                            <li><strong>Column A:</strong> File Path</li>
+                            <li><strong>Column B:</strong> Display Name</li>
+                            <li><strong>Column C:</strong> Tags (comma-separated)</li>
+                            <li><strong>Column D:</strong> Description</li>
+                            <li><strong>Column E:</strong> Rating (1-5)</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="export-options">
+                        <button class="btn btn-secondary" id="exportMetadataBtn">
+                            <i class="fas fa-file-export"></i> Export Metadata Template
+                        </button>
+                        <button class="btn btn-secondary" id="importMetadataBtn">
+                            <i class="fas fa-file-import"></i> Import Metadata
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3><i class="fas fa-tags"></i> Custom Tags</h3>
+                    <p>Manage custom tags for audio files</p>
+                    <div class="tags-manager" id="tagsManager">
+                        <!-- Tags will be populated here -->
+                    </div>
+                    <div class="add-tag-form">
+                        <input type="text" id="newTagInput" placeholder="Add new tag">
+                        <button class="btn" id="addTagBtn">
+                            <i class="fas fa-plus"></i> Add
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- About Tab -->
+            <div class="settings-tab-content" id="tab-about">
+                <div class="settings-section">
+                    <h3><i class="fas fa-info-circle"></i> About H360 Sound Collection</h3>
+                    <p>A comprehensive audio search engine for browsing, previewing, and downloading sound effects.</p>
+                    
+                    <div class="about-stats">
+                        <div class="stat-item">
+                            <i class="fas fa-music"></i>
+                            <span id="totalAudioFiles">0</span>
+                            <p>Audio Files</p>
+                        </div>
+                        <div class="stat-item">
+                            <i class="fas fa-folder"></i>
+                            <span>5</span>
+                            <p>Categories</p>
+                        </div>
+                        <div class="stat-item">
+                            <i class="fas fa-hdd"></i>
+                            <span id="totalSize">0 MB</span>
+                            <p>Total Size</p>
+                        </div>
+                    </div>
+                    
+                    <div class="version-info">
+                        <p>Version 1.0.0</p>
+                        <p>Created by <a href="https://pixelagent.co.uk" target="_blank">PixelAgent</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio Details Modal -->
+    <div id="audioDetailsModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="audioDetailsTitle"><i class="fas fa-music"></i> Audio Details</h2>
+                <button class="btn-close" id="closeAudioDetails">✕</button>
+            </div>
+            
+            <div class="audio-details-content">
+                <div class="audio-preview">
+                    <div class="waveform" id="waveformContainer">
+                        <canvas id="waveformCanvas"></canvas>
+                    </div>
+                    <div class="preview-controls">
+                        <button class="btn" id="previewPlayBtn">
+                            <i class="fas fa-play"></i> Preview
+                        </button>
+                        <span id="previewDuration">0:00</span>
+                    </div>
+                </div>
+                
+                <div class="audio-info">
+                    <div class="info-row">
+                        <label><i class="fas fa-file"></i> Filename:</label>
+                        <span id="detailFilename">-</span>
+                    </div>
+                    <div class="info-row">
+                        <label><i class="fas fa-folder"></i> Category:</label>
+                        <span id="detailCategory">-</span>
+                    </div>
+                    <div class="info-row">
+                        <label><i class="fas fa-file-audio"></i> Format:</label>
+                        <span id="detailFormat">-</span>
+                    </div>
+                    <div class="info-row">
+                        <label><i class="fas fa-hdd"></i> Size:</label>
+                        <span id="detailSize">-</span>
+                    </div>
+                    <div class="info-row">
+                        <label><i class="fas fa-clock"></i> Duration:</label>
+                        <span id="detailDuration">-</span>
+                    </div>
+                </div>
+                
+                <div class="audio-metadata">
+                    <div class="metadata-field">
+                        <label><i class="fas fa-tag"></i> Display Name:</label>
+                        <input type="text" id="detailDisplayName" placeholder="Enter display name">
+                    </div>
+                    <div class="metadata-field">
+                        <label><i class="fas fa-tags"></i> Tags:</label>
+                        <input type="text" id="detailTags" placeholder="Enter tags (comma-separated)">
+                    </div>
+                    <div class="metadata-field">
+                        <label><i class="fas fa-align-left"></i> Description:</label>
+                        <textarea id="detailDescription" placeholder="Enter description" rows="3"></textarea>
+                    </div>
+                    <div class="metadata-field">
+                        <label><i class="fas fa-star"></i> Rating:</label>
+                        <div class="rating-input" id="detailRating">
+                            <i class="fas fa-star" data-rating="1"></i>
+                            <i class="fas fa-star" data-rating="2"></i>
+                            <i class="fas fa-star" data-rating="3"></i>
+                            <i class="fas fa-star" data-rating="4"></i>
+                            <i class="fas fa-star" data-rating="5"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="audio-actions">
+                    <button class="btn" id="saveMetadataBtn">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                    <button class="btn btn-secondary" id="downloadAudioBtn">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                    <button class="btn btn-secondary" id="copyPathBtn">
+                        <i class="fas fa-copy"></i> Copy Path
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">
+        <i class="fas fa-check-circle"></i>
+        <span id="toastMessage">Action completed</span>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.4/howler.min.js"></script>
+    <script src="js/audioSearchEngine.js"></script>
+    <script src="js/audioEngineLibraryBridge.js"></script>
+    <script src="js/librarySources.js"></script>
+    <script src="js/googleDriveIntegration.js"></script>
+</body>
+
+</html>
