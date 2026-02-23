@@ -542,6 +542,7 @@ function loadAndPlay(idx) {
 
 /**
  * Play audio using HTML5 audio element (for Google Drive files)
+ * Note: Google Drive files have CORS restrictions. We try multiple URL formats.
  */
 function playWithHtml5Audio(f) {
     // Create or get the hidden audio element
@@ -605,23 +606,59 @@ function playWithHtml5Audio(f) {
 
     html5Audio.onerror = (e) => {
         console.log('HTML5 audio error:', e, 'for file:', f.name);
-        showToast('ℹ️ Could not load audio: ' + f.name, 3000);
-        simulateDemoPlayback(f);
+        // Try alternative URL formats for Google Drive
+        tryAlternativeGoogleDriveUrls(f, 0);
     };
 
-    // Set source and play
+    // Set source and play - try the direct download URL first
     html5Audio.src = getGoogleDriveDownloadUrl(f.driveId);
     html5Audio.volume = (settings.volume || 80) / 100;
     html5Audio.loop = isLooping;
     
     html5Audio.play().catch(err => {
         console.log('Playback failed:', err);
-        showToast('ℹ️ Could not play audio: ' + f.name, 3000);
+        // Google Drive files often can't be played directly due to CORS
+        // Show a helpful message and simulate playback
+        showToast('⚠️ Google Drive audio requires download first', 3000);
+        simulateDemoPlayback(f);
     });
 
     showPlayerBar(f);
     updatePlayerInfo(f);
     showToast(`🎵 Playing: ${f.name}`);
+}
+
+/**
+ * Try alternative Google Drive URL formats for audio playback
+ * @param {Object} f - File object
+ * @param {number} urlIndex - Index of URL format to try
+ */
+function tryAlternativeGoogleDriveUrls(f, urlIndex) {
+    const urlFormats = [
+        // Direct download URL
+        () => `https://drive.google.com/uc?export=download&id=${f.driveId}`,
+        // Alternative download format
+        () => `https://drive.usercontent.google.com/download?id=${f.driveId}&export=download`,
+        // Direct file URL (may not work due to CORS)
+        () => `https://drive.google.com/file/d/${f.driveId}/view`,
+    ];
+    
+    if (urlIndex >= urlFormats.length) {
+        // All URLs failed, use demo playback
+        showToast('ℹ️ Could not load audio: ' + f.name, 3000);
+        simulateDemoPlayback(f);
+        return;
+    }
+    
+    const newUrl = urlFormats[urlIndex]();
+    console.log(`Trying alternative URL format ${urlIndex + 1}:`, newUrl);
+    
+    html5Audio.src = newUrl;
+    html5Audio.load();
+    html5Audio.play().catch(err => {
+        console.log(`URL format ${urlIndex + 1} failed:`, err);
+        tryAlternativeGoogleDriveUrls(f, urlIndex + 1);
+    });
 }
 
 function simulateDemoPlayback(f) {
