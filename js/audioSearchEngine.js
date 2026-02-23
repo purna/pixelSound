@@ -26,6 +26,7 @@ let currentIndex    = -1;        // index into filteredFiles
 let howl            = null;      // active Howler instance
 let html5Audio      = null;      // HTML5 audio element for Google Drive files
 let isLooping       = false;
+let isTryingAlternative = false;  // Flag to prevent recursive error handling
 let progressRAF     = null;
 let currentModal    = null;      // file shown in details modal
 let currentRating   = 0;        // rating in details modal
@@ -478,7 +479,11 @@ function togglePlay(idx) {
                 html5Audio.pause();
                 setPlayerBtn('play');
             } else {
-                html5Audio.play();
+                html5Audio.play().catch(err => {
+                    console.log('Playback failed:', err);
+                    showToast('⚠️ Could not play audio: ' + (filteredFiles[currentIndex]?.name || 'Unknown'), 3000);
+                    setPlayerBtn('play');
+                });
                 setPlayerBtn('pause');
             }
             return;
@@ -492,6 +497,7 @@ function loadAndPlay(idx) {
     // Stop any existing playback
     if (howl) { howl.unload(); howl = null; }
     if (html5Audio) { html5Audio.pause(); html5Audio.src = ''; }
+    isTryingAlternative = false;  // Reset flag for new playback
     cancelAnimationFrame(progressRAF);
 
     const f = filteredFiles[idx];
@@ -605,6 +611,7 @@ function playWithHtml5Audio(f) {
     };
 
     html5Audio.onerror = (e) => {
+        if (isTryingAlternative) return;  // Prevent recursive error handling
         console.log('HTML5 audio error:', e, 'for file:', f.name);
         // Try alternative URL formats for Google Drive
         tryAlternativeGoogleDriveUrls(f, 0);
@@ -616,11 +623,10 @@ function playWithHtml5Audio(f) {
     html5Audio.loop = isLooping;
     
     html5Audio.play().catch(err => {
+        if (isTryingAlternative) return;  // Prevent recursive error handling
         console.log('Playback failed:', err);
-        // Google Drive files often can't be played directly due to CORS
-        // Show a helpful message and simulate playback
-        showToast('⚠️ Google Drive audio requires download first', 3000);
-        simulateDemoPlayback(f);
+        // Try alternative URLs instead of immediately giving up
+        tryAlternativeGoogleDriveUrls(f, 0);
     });
 
     showPlayerBar(f);
@@ -634,6 +640,10 @@ function playWithHtml5Audio(f) {
  * @param {number} urlIndex - Index of URL format to try
  */
 function tryAlternativeGoogleDriveUrls(f, urlIndex) {
+    // Prevent recursive calls
+    if (isTryingAlternative && urlIndex === 0) return;
+    isTryingAlternative = true;
+    
     const urlFormats = [
         // Direct download URL
         () => `https://drive.google.com/uc?export=download&id=${f.driveId}`,
@@ -645,6 +655,7 @@ function tryAlternativeGoogleDriveUrls(f, urlIndex) {
     
     if (urlIndex >= urlFormats.length) {
         // All URLs failed, use demo playback
+        isTryingAlternative = false;
         showToast('ℹ️ Could not load audio: ' + f.name, 3000);
         simulateDemoPlayback(f);
         return;
@@ -655,8 +666,12 @@ function tryAlternativeGoogleDriveUrls(f, urlIndex) {
     
     html5Audio.src = newUrl;
     html5Audio.load();
-    html5Audio.play().catch(err => {
+    html5Audio.play().then(() => {
+        // Success - reset the flag
+        isTryingAlternative = false;
+    }).catch(err => {
         console.log(`URL format ${urlIndex + 1} failed:`, err);
+        // Try next URL format
         tryAlternativeGoogleDriveUrls(f, urlIndex + 1);
     });
 }
@@ -1283,7 +1298,14 @@ function bindUI() {
             else                { howl.play();  setPlayerBtn('pause'); }
         } else if (html5Audio && html5Audio.src) {
             if (!html5Audio.paused) { html5Audio.pause(); setPlayerBtn('play'); }
-            else                    { html5Audio.play();  setPlayerBtn('pause'); }
+            else {
+                html5Audio.play().catch(err => {
+                    console.log('Playback failed:', err);
+                    showToast('⚠️ Could not play audio', 3000);
+                    setPlayerBtn('play');
+                });
+                setPlayerBtn('pause');
+            }
         } else if (filteredFiles.length > 0) {
             loadAndPlay(0);
         }
