@@ -105,7 +105,7 @@ app/
 Click **Audio to WebM** in the header, choose or drop audio files, select a quality setting, and click **Convert to WebM**. Each completed file has an audio preview and a download button. Use **Download all (.zip)** to save every completed WebM in a single archive; duplicate filenames are automatically numbered.
 
 - Converts locally to audio-only WebM using the browser’s Web Audio and MediaRecorder APIs; files are never uploaded.
-- Accepts up to 10 files, each up to 100 MB. Input formats depend on what the browser can decode (typically MP3, WAV, OGG, M4A, AAC, and FLAC).
+- Accepts up to 10 files, each up to 100 MB. OGG Vorbis and OGG Opus have bundled local decoder fallbacks. Other input formats depend on what the browser can decode (typically MP3, WAV, M4A, AAC, and FLAC).
 - Conversion runs in real time: a one-minute file takes approximately one minute. Keep the tab open during conversion.
 - WebM encoding support is checked before enabling conversion. Use a current Chrome, Edge, or Firefox if your browser reports that encoding is unavailable.
 - Cancel stops the current batch; completed files remain available. Clear files releases the generated downloads.
@@ -217,3 +217,7 @@ The app uses CSS custom properties for theming. Edit `css/base.css` to customize
 
 - [PixelAgent](https://pixelagent.co.uk)
 - [Kenney Assets](https://kenney.nl/assets)
+
+### Converter decoding checks
+
+Run `node scripts/testAudioDecoding.cjs` to verify real Vorbis and Opus fixtures with browser decoding deliberately disabled, plus the native decoding path and invalid-file errors. Decoder versions and notices are in `js/vendor/README.md`.

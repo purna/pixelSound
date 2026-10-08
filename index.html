@@ -552,7 +552,7 @@
                 <i class="fas fa-file-audio" aria-hidden="true"></i>
                 <h3>Drop your audio files here</h3>
                 <button class="btn" id="chooseConverterFiles">Choose files</button>
-                <input id="converterFiles" type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.webm" multiple hidden>
+                <input id="converterFiles" type="file" accept="audio/*,.mp3,.wav,.ogg,.oga,.opus,.m4a,.aac,.flac,.webm" multiple hidden>
                 <p>Up to 10 files · 100 MB per file · Files stay on your device</p>
             </div>
             <div class="converter-options">
@@ -587,6 +587,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.4/howler.min.js"></script>
     <script src="js/audioSearchEngine.js"></script>
     <script src="js/webmZip.js"></script>
+    <script src="js/vendor/ogg-vorbis-decoder-0.1.20.min.js" charset="UTF-8"></script>
+    <script src="js/vendor/ogg-opus-decoder-1.7.5.min.js" charset="UTF-8"></script>
+    <script src="js/audioDecoding.js"></script>
     <script src="js/audioConverter.js"></script>
     <script src="js/audioEngineLibraryBridge.js"></script>
     <script src="js/librarySources.js"></script>

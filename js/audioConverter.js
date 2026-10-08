@@ -29,7 +29,7 @@
         for (const file of files) {
             if (queue.length >= 10) { messages.push('The queue is limited to 10 files.'); break; }
             if (!file.size || file.size > 100 * 1024 * 1024) { messages.push(`${file.name}: choose a non-empty file under 100 MB.`); continue; }
-            if (!file.type.startsWith('audio/') && !/\.(mp3|wav|ogg|m4a|aac|flac|webm)$/i.test(file.name)) { messages.push(`${file.name}: choose an audio file.`); continue; }
+            if (!file.type.startsWith('audio/') && !/\.(mp3|wav|ogg|oga|opus|m4a|aac|flac|webm)$/i.test(file.name)) { messages.push(`${file.name}: choose an audio file.`); continue; }
             const row = document.createElement('li');
             const name = document.createElement('strong'); name.textContent = file.name;
             const detail = document.createElement('small'); detail.textContent = `${(file.size / 1024 / 1024).toFixed(2)} MB · Ready`;
@@ -48,7 +48,7 @@
             // Resume during the click gesture before reading/decoding the file.
             await context.resume();
             item.detail.textContent = 'Reading audio…';
-            const buffer = await context.decodeAudioData(await item.file.arrayBuffer());
+            const buffer = await window.decodeConverterAudio(context, item.file);
             if (cancelled) throw new Error('Conversion cancelled.');
             source = context.createBufferSource(); source.buffer = buffer;
             destination = context.createMediaStreamDestination(); source.connect(destination);
