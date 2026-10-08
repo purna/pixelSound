@@ -62,6 +62,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load audio from library JSON files (H360s and Kenney)
     loadLibraryJsonFiles();
 
+    // Resolve any permalink in the URL hash once files are loaded
+    window.addEventListener('hashchange', handlePermalink);
+    window.addEventListener('load', () => {
+        if (window.location.hash) setTimeout(handlePermalink, 500);
+    });
+
     bindUI();
 });
 
@@ -397,6 +403,9 @@ function buildCard(f, idx) {
             <button class="audio-card-btn" onclick="openDetailsModal(filteredFiles[${idx}])" title="Details">
                 <i class="fas fa-info-circle"></i>
             </button>
+            <button class="audio-card-btn" onclick="copyPermalink(filteredFiles[${idx}], event)" title="Copy permanent link">
+                <i class="fas fa-link"></i>
+            </button>
         </div>
         ${isPlaying ? '<div class="playing-indicator"></div>' : ''}
     </div>`;
@@ -410,6 +419,107 @@ function buildStarsHtml(rating, interactive = false) {
             : `<i class="${cls}"></i>`;
     }).join('');
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PERMALINKS — permanent, shareable URLs for each sound
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Build a permanent URL for a specific audio file using the location hash.
+ * Format: <origin><pathname>#file=<id>
+ * Falls back to the file's path if no id is available.
+ */
+function getPermalink(f) {
+    const id = f.id != null ? f.id : (f.path || '').replace(/[\/\\]/g, '-');
+    const base = window.location.origin + window.location.pathname;
+    return `${base}#file=${encodeURIComponent(id)}`;
+}
+
+/**
+ * Copy a sound's permanent permalink to the clipboard.
+ */
+function copyPermalink(f, event) {
+    if (event) event.stopPropagation();
+    const url = getPermalink(f);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url)
+            .then(() => showToast('🔗 Permalink copied!'))
+            .catch(() => fallbackCopyText(url));
+    } else {
+        fallbackCopyText(url);
+    }
+}
+
+function fallbackCopyText(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+        document.execCommand('copy');
+        showToast('🔗 Permalink copied!');
+    } catch (e) {
+        showToast('⚠️ Could not copy link');
+    }
+    document.body.removeChild(ta);
+}
+
+/**
+ * Resolve a permalink hash back into a file object.
+ * Supports `#file=<id>` and `#path=<encodedPath>`.
+ */
+function resolvePermalink(hash) {
+    if (!hash) return null;
+    const match = hash.match(/(?:^|[?&])file=([^&]+)/);
+    if (match) {
+        const id = decodeURIComponent(match[1]);
+        // Try numeric id first, then path match
+        let f = audioFiles.find(file => String(file.id) === id);
+        if (!f) f = audioFiles.find(file => String(file.path || '') === id);
+        return f || null;
+    }
+    const pathMatch = hash.match(/(?:^|[?&])path=([^&]+)/);
+    if (pathMatch) {
+        const p = decodeURIComponent(pathMatch[1]);
+        return audioFiles.find(file => file.path === p) || null;
+    }
+    return null;
+}
+
+/**
+ * Handle the initial page load and ongoing hash changes so that
+ * permalinks always open the correct sound details modal.
+ */
+function handlePermalink() {
+    const hash = (window.location.hash || '').replace(/^#/, '');
+    if (!hash) return;
+    const f = resolvePermalink(hash);
+    if (f) {
+        openDetailsModal(f);
+        return;
+    }
+    // Files may still be loading; retry a few times
+    if (audioFiles.length === 0 && !handlePermalink._retry) {
+        handlePermalink._retry = 0;
+        const retry = () => {
+            handlePermalink._retry++;
+            if (handlePermalink._retry > 20) return; // give up after ~2s
+            const found = resolvePermalink(hash);
+            if (found) {
+                openDetailsModal(found);
+                return;
+            }
+            if (audioFiles.length === 0) {
+                setTimeout(retry, 100);
+            }
+        };
+        setTimeout(retry, 300);
+    }
+}
+
+// Expose permalink helpers globally so inline HTML onclick handlers can use them
+window.getPermalink   = getPermalink;
+window.copyPermalink  = copyPermalink;
+window.handlePermalink = handlePermalink;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SEARCH & FILTER
@@ -1555,6 +1665,9 @@ function bindUI() {
                 showToast('📋 Path copied!');
             });
     });
+    document.getElementById('copyLinkBtn').addEventListener('click', () => {
+        if (currentModal) copyPermalink(currentModal);
+    });
 
     // Close modals on backdrop click
     ['settingsModal', 'driveLinksModal', 'audioDetailsModal', 'driveFolderPickerModal', 'indexingProgressModal'].forEach(id => {
@@ -1565,6 +1678,7 @@ function bindUI() {
 
     // Keyboard shortcuts
     document.addEventListener('keydown', e => {
+        if (!document.getElementById('converterModal').classList.contains('hidden')) return;
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
         if (e.key === ' ') {
             e.preventDefault();
@@ -1672,6 +1786,8 @@ window.filteredFiles    = filteredFiles; // keep reference live
 window.seekAudio        = seekAudio;
 window.toggleVolumeSlider = toggleVolumeSlider;
 window.setCardVolume    = setCardVolume;
+window.copyPermalink    = copyPermalink;
+window.getPermalink     = getPermalink;
 
 /**
  * Seek to position in audio

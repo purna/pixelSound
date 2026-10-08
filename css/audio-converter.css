@@ -1,0 +1,46 @@
+.converter-content > p { margin: 1rem 0; color: var(--text-secondary); }
+.converter-drop-zone { border: 2px dashed var(--accent-color); border-radius: 12px; padding: 2rem 1rem; text-align: center; background: var(--accent-light); }
+.converter-drop-zone.drag-over { outline: 3px solid var(--accent-color); }
+.converter-drop-zone > i { font-size: 2rem; color: var(--accent-color); }
+.converter-drop-zone h3 { margin: 1rem 0; }
+.converter-drop-zone p { margin-top: 1rem; font-size: .85rem; }
+.converter-options, .converter-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin: 1rem 0; }
+.converter-options select { background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border-color); padding: .65rem; border-radius: 6px; }
+.converter-options span, .converter-note { font-size: .85rem; color: var(--text-secondary); }
+.converter-queue { list-style: none; padding: 0; }
+.converter-queue li { padding: 1rem; border: 1px solid var(--border-color); border-radius: 8px; margin: .75rem 0; overflow-wrap: anywhere; }
+.converter-queue strong, .converter-queue small { display: block; margin-bottom: .5rem; }
+.converter-queue progress, .converter-queue audio { display: block; width: 100%; margin: .75rem 0; }
+.converter-content button:disabled { opacity: .5; cursor: not-allowed; }
+.converter-content [hidden] { display: none !important; }
+@media (max-width: 600px) { #openConverter { font-size: .7rem; padding: .5rem; } .converter-drop-zone { padding: 1rem; } }
+
+/* Keep the title and actions visible while only the dialog body scrolls. */
+#converterModal { padding: clamp(.5rem, 2vw, 1.5rem); }
+#converterModal .converter-content {
+    display: flex;
+    flex-direction: column;
+    max-width: 760px;
+    max-height: calc(100dvh - 3rem);
+    overflow: hidden;
+}
+.converter-content .modal-header { flex-shrink: 0; padding: 1.1rem 1.5rem; }
+.converter-body { padding: 1.25rem 1.5rem; overflow-y: auto; min-height: 0; overscroll-behavior: contain; }
+.converter-body > p { margin: 0 0 1rem; color: var(--text-secondary); line-height: 1.5; }
+.converter-body .converter-drop-zone { padding: 1.25rem; }
+.converter-body .converter-drop-zone h3 { margin: .75rem 0; }
+.converter-body .converter-drop-zone p { line-height: 1.5; }
+.converter-content .converter-actions { flex-shrink: 0; margin: 0; padding: 1rem 1.5rem; border-top: 1px solid var(--border-color); background: var(--bg-secondary); }
+.converter-actions #downloadAllConverter { margin-left: auto; }
+.converter-queue li:last-child { margin-bottom: 0; }
+.converter-queue a.btn { text-decoration: none; }
+.converter-queue audio { height: 40px; }
+.converter-options select { max-width: 100%; min-width: 0; }
+@media (max-width: 600px) {
+    #converterModal .converter-content { max-height: calc(100dvh - 1rem); }
+    .converter-content .modal-header, .converter-body, .converter-content .converter-actions { padding: 1rem; }
+    .converter-options { align-items: stretch; }
+    .converter-options label, .converter-options select { width: 100%; }
+    .converter-content .converter-actions .btn { flex: 1 1 45%; justify-content: center; padding: .65rem .5rem; }
+    .converter-actions #downloadAllConverter { margin-left: 0; }
+}

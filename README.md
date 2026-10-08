@@ -100,6 +100,16 @@ app/
 3. Use the dropdown filters for format and library
 4. Click on a card to view details or click the play button to preview
 
+### Audio to WebM Converter
+
+Click **Audio to WebM** in the header, choose or drop audio files, select a quality setting, and click **Convert to WebM**. Each completed file has an audio preview and a download button. Use **Download all (.zip)** to save every completed WebM in a single archive; duplicate filenames are automatically numbered.
+
+- Converts locally to audio-only WebM using the browser’s Web Audio and MediaRecorder APIs; files are never uploaded.
+- Accepts up to 10 files, each up to 100 MB. Input formats depend on what the browser can decode (typically MP3, WAV, OGG, M4A, AAC, and FLAC).
+- Conversion runs in real time: a one-minute file takes approximately one minute. Keep the tab open during conversion.
+- WebM encoding support is checked before enabling conversion. Use a current Chrome, Edge, or Firefox if your browser reports that encoding is unavailable.
+- Cancel stops the current batch; completed files remain available. Clear files releases the generated downloads.
+
 ### Keyboard Shortcuts
 
 | Key | Action |

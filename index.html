@@ -15,6 +15,7 @@
     <!-- CSS -->
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/audio-search.css">
+    <link rel="stylesheet" href="css/audio-converter.css">
 </head>
 
 <body>
@@ -31,6 +32,7 @@
                     <p class="subtitle">Search, preview, and download audio files</p>
                 </div>
                 <div class="header-right">
+                    <button class="btn btn-secondary" id="openConverter" title="Convert audio to WebM"><i class="fas fa-exchange-alt" aria-hidden="true"></i> Audio to WebM</button>
                     <button class="settings-toggle" id="driveLinksBtn" title="Google Drive Links">
                         <i class="fab fa-google-drive"></i>
                     </button>
@@ -526,10 +528,51 @@
                     <button class="btn btn-secondary" id="downloadAudioBtn">
                         <i class="fas fa-download"></i> Download
                     </button>
-                    <button class="btn btn-secondary" id="copyPathBtn">
+                    <button class="btn btn-secondary" id="copyPathBtn" title="Copy raw file path">
                         <i class="fas fa-copy"></i> Copy Path
                     </button>
+                    <button class="btn btn-secondary" id="copyLinkBtn" title="Copy permanent permalink">
+                        <i class="fas fa-link"></i> Copy Link
+                    </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio converter -->
+    <div id="converterModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="converterTitle">
+        <div class="modal-content modal-large converter-content">
+            <div class="modal-header">
+                <h2 id="converterTitle">Audio to WebM</h2>
+                <button class="btn-close" id="closeConverter" aria-label="Close audio converter">✕</button>
+            </div>
+            <div class="converter-body">
+            <p>Turn MP3, WAV, OGG, and other browser-supported audio into audio-only WebM files.</p>
+            <div id="converterDropZone" class="converter-drop-zone">
+                <i class="fas fa-file-audio" aria-hidden="true"></i>
+                <h3>Drop your audio files here</h3>
+                <button class="btn" id="chooseConverterFiles">Choose files</button>
+                <input id="converterFiles" type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.webm" multiple hidden>
+                <p>Up to 10 files · 100 MB per file · Files stay on your device</p>
+            </div>
+            <div class="converter-options">
+                <label for="converterBitrate">Audio quality</label>
+                <select id="converterBitrate">
+                    <option value="64000">64 kbps — smaller files</option>
+                    <option value="128000" selected>128 kbps — standard</option>
+                    <option value="192000">192 kbps — high quality</option>
+                </select>
+                <span>Output: WebM / Opus</span>
+            </div>
+            <p class="converter-note">Conversion takes roughly the audio’s duration. Keep this tab open until it finishes.</p>
+            <p id="converterStatus" role="status" aria-live="polite">Choose files to get started.</p>
+            <ul id="converterQueue" class="converter-queue" aria-label="Conversion files"></ul>
+            </div>
+            <div class="converter-actions">
+                <button class="btn" id="convertAudio" disabled>Convert to WebM</button>
+                <button class="btn btn-secondary" id="cancelConversion" hidden>Cancel conversion</button>
+                <button class="btn btn-secondary" id="clearConverter" disabled>Clear files</button>
+                <button class="btn" id="downloadAllConverter" disabled>Download all (.zip)</button>
             </div>
         </div>
     </div>
@@ -543,6 +586,8 @@
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.4/howler.min.js"></script>
     <script src="js/audioSearchEngine.js"></script>
+    <script src="js/webmZip.js"></script>
+    <script src="js/audioConverter.js"></script>
     <script src="js/audioEngineLibraryBridge.js"></script>
     <script src="js/librarySources.js"></script>
     <script src="js/googleDriveIntegration.js"></script>
